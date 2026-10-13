@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Verificação Concluída</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    background:#0a0a0f;
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    color:#fff;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:20px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .card {
+    width:100%; max-width:420px;
+    background:#0d0d14; border:1px solid #1a1a24;
+    border-radius:24px; padding:22px 20px 20px;
+    position:relative; overflow:hidden;
+    animation: fadeUp 0.6s cubic-bezier(0.22,1,0.36,1);
+  }
+  @keyframes fadeUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+  .banner {
+    position:relative; width:100%; height:140px;
+    border-radius:16px; overflow:hidden;
+    background: linear-gradient(135deg,#1a1a2e 0%, #2a1a4a 100%);
+    margin-bottom: -46px;
+  }
+  .banner img.banner-img { width:100%; height:100%; object-fit:cover; display:block; }
+  .banner-placeholder {
+    width:100%; height:100%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:40px; opacity:0.35;
+  }
+  .avatar-wrap { position:relative; width:92px; height:92px; margin: 0 auto 12px; z-index:2; }
+  .avatar {
+    width:100%; height:100%; border-radius:50%;
+    border:4px solid #0d0d14; object-fit:cover;
+    background:#1a1a24; display:block;
+  }
+  .avatar-badge {
+    position:absolute; right:2px; bottom:2px;
+    width:26px; height:26px; border-radius:50%;
+    background:#23a55a; border:3px solid #0d0d14;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; color:#fff; font-weight:700;
+  }
+  .name-row { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+  .username { font-size:22px; font-weight:800; letter-spacing:-0.3px; text-align:center; }
+  .verified-badge {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:4px 10px; background: rgba(35,165,90,0.12);
+    border:1px solid rgba(35,165,90,0.35);
+    border-radius:999px; font-size:12px; font-weight:600; color:#3ddc84;
+  }
+  .verified-badge::before {
+    content:""; width:6px; height:6px; border-radius:50%;
+    background:#3ddc84; box-shadow:0 0 6px #3ddc84;
+    animation: pulseDot 1.6s ease-in-out infinite;
+  }
+  @keyframes pulseDot {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.5; transform:scale(0.85); }
+  }
+  .timestamp {
+    text-align:center; color:#6a6a7a; font-size:13px;
+    margin-bottom:18px; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .timestamp::before { content:"🕐"; font-size:12px; opacity:0.6; }
+  .guild-box {
+    display:flex; align-items:center; gap:14px;
+    padding:14px; background:#13131c; border:1px solid #1e1e2a;
+    border-radius:16px; margin-bottom:18px;
+  }
+  .guild-icon { width:46px; height:46px; border-radius:50%; object-fit:cover; background:#1a1a24; flex-shrink:0; border:2px solid #1e1e2a; }
+  .guild-icon-fallback {
+    width:46px; height:46px; border-radius:50%;
+    background: linear-gradient(135deg,#5865F2,#8b5cf6);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:18px; flex-shrink:0; border:2px solid #1e1e2a;
+  }
+  .guild-info { flex:1; min-width:0; }
+  .guild-label { font-size:11px; color:#6a6a7a; text-transform:uppercase; letter-spacing:0.6px; font-weight:600; margin-bottom:2px; }
+  .guild-name { font-size:15px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .guild-badge {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:5px 10px; background: rgba(35,165,90,0.1);
+    border:1px solid rgba(35,165,90,0.3);
+    border-radius:8px; font-size:11px; font-weight:600; color:#3ddc84; flex-shrink:0;
+  }
+  .btn {
+    width:100%; padding:15px; border-radius:12px;
+    font-family:inherit; font-size:15px; font-weight:600;
+    cursor:pointer; border:none;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    text-decoration:none; transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary {
+    background: linear-gradient(135deg,#5865F2,#6b46e8);
+    color:#fff; margin-bottom:10px;
+    box-shadow: 0 6px 20px rgba(88,101,242,0.35);
+  }
+  .btn-primary:hover { background: linear-gradient(135deg,#6577ff,#7a52f5); }
+  .btn-secondary {
+    background:#1a1a24; color:#c9cdf0; border:1px solid #24243a;
+  }
+  .btn-secondary:hover { background:#1f1f2c; }
+  .footer-counter {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top:18px; padding-top:14px;
+    border-top:1px solid #1a1a24;
+    font-size:13px; color:#6a6a7a;
+  }
+  .counter-text strong { color:#c9cdf0; font-weight:600; }
+  .spinner {
+    width:22px; height:22px; border-radius:50%;
+    border:2.5px solid #24243a; border-top-color:#5865F2;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .credits { text-align:center; color:#3a3a4a; font-size:12px; margin-top:20px; letter-spacing:0.2px; }
+  .credits a { color:#5865F2; text-decoration:none; font-weight:600; }
+  @media (max-width: 480px) {
+    .card { padding: 18px 16px 16px; border-radius: 22px; }
+    .username { font-size:20px; }
+    .banner { height:120px; }
+    .avatar-wrap { width:84px; height:84px; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="banner">
+      {% if guild_banner %}<img class="banner-img" src="{{ guild_banner }}" alt="{{ guild_name }}">
+      {% else %}<div class="banner-placeholder">🛡️</div>{% endif %}
+    </div>
+    <div class="avatar-wrap">
+      <img class="avatar" src="{{ avatar }}" alt="{{ username }}">
+      <div class="avatar-badge">✓</div>
+    </div>
+    <div class="name-row">
+      <span class="username">{{ username }}</span>
+      <span class="verified-badge">Verificado</span>
+    </div>
+    <div class="timestamp">{{ timestamp }}</div>
+    <div class="guild-box">
+      {% if guild_icon %}<img class="guild-icon" src="{{ guild_icon }}" alt="{{ guild_name }}">
+      {% else %}<div class="guild-icon-fallback">{{ guild_name[0]|upper }}</div>{% endif %}
+      <div class="guild-info">
+        <div class="guild-label">Servidor</div>
+        <div class="guild-name">{{ guild_name }}</div>
+      </div>
+      <div class="guild-badge">✓ Cargo atribuído</div>
+    </div>
+    <a class="btn btn-primary" href="{{ guild_url }}" target="_blank" rel="noopener">Acessar servidor <span>→</span></a>
+    <a class="btn btn-secondary" href="discord://-/channels/{{ guild_id }}" target="_blank" rel="noopener"><span>↗</span> Abrir Discord</a>
+    <div class="footer-counter">
+      <span class="counter-text">Redirecionando em <strong id="counter">10s</strong></span>
+      <div class="spinner"></div>
+    </div>
+  </div>
+  <p class="credits">Desenvolvido por <a href="#">{{ app_name }}</a></p>
+  <script>
+    let seconds = 10;
+    const counterEl = document.getElementById("counter");
+    const guildUrl = "{{ guild_url }}";
+    const interval = setInterval(() => {
+      seconds--;
+      counterEl.textContent = seconds + "s";
+      if (seconds <= 0) { clearInterval(interval); window.location.href = guildUrl; }
+    }, 1000);
+  </script>
+</body>
+</html>
