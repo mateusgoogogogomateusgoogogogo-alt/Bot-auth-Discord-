@@ -1,0 +1,298 @@
+import os
+import json
+import requests
+from datetime import datetime, timezone
+from flask import Flask, request, redirect, render_template
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = Flask(__name__, template_folder="templates")
+
+# ============================================================
+# CONFIG
+# ============================================================
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8081/callback")
+GUILD_ID = os.getenv("GUILD_ID")
+BOT_TOKEN = os.getenv("DISCORD_TOKEN")
+FLASK_PORT = int(os.getenv("FLASK_PORT", 8001))
+
+DISCORD_API = "https://discord.com/api/v10"
+TOKENS_FILE = "tokens.json"
+CONFIG_FILE = "config.json"
+
+APP_NAME = "AuthBot"
+
+
+def load_tokens() -> dict:
+    if not os.path.exists(TOKENS_FILE):
+        return {}
+    try:
+        with open(TOKENS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_token(user_id, access_token, refresh_token, expires_in):
+    data = load_tokens()
+    data[user_id] = {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_at": datetime.now(timezone.utc).timestamp() + expires_in if expires_in else None,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    with open(TOKENS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_config() -> dict:
+    if not os.path.exists(CONFIG_FILE):
+        return {}
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+# ============================================================
+# ROTAS
+# ============================================================
+@app.route("/")
+def home():
+    url = (
+        f"https://discord.com/api/oauth2/authorize"
+        f"?client_id={CLIENT_ID}"
+        f"&response_type=code"
+        f"&redirect_uri={REDIRECT_URI}"
+        f"&scope=identify%20guilds.join"
+        f"&prompt=consent"
+    )
+    return redirect(url)
+
+
+@app.route("/callback")
+def callback():
+    config = load_config()
+    verified_role_id = config.get("verified_role_id")
+    unverified_role_id = config.get("unverified_role_id")
+    log_channel_id = config.get("log_channel_id")
+    embed_cfg = config.get("embed", {})
+
+    code = request.args.get("code")
+    if not code:
+        return render_template("erro.html", motivo="Nenhum código recebido.", app_name=APP_NAME)
+
+    # Troca code por token
+    token_resp = requests.post(
+        f"{DISCORD_API}/oauth2/token",
+        data={
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+        },
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    if token_resp.status_code != 200:
+        print("❌ token:", token_resp.status_code, token_resp.text)
+        return render_template("erro.html", motivo="Falha ao obter token.", app_name=APP_NAME)
+
+    td = token_resp.json()
+    access_token = td.get("access_token")
+    refresh_token = td.get("refresh_token")
+    expires_in = td.get("expires_in", 0)
+
+    if not access_token:
+        return render_template("erro.html", motivo="Token inválido.", app_name=APP_NAME)
+
+    # Dados do user
+    user_resp = requests.get(
+        f"{DISCORD_API}/users/@me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    if user_resp.status_code != 200:
+        return render_template("erro.html", motivo="Falha ao obter usuário.", app_name=APP_NAME)
+
+    user = user_resp.json()
+    user_id = user["id"]
+    username = user.get("global_name") or user["username"]
+    avatar_hash = user.get("avatar")
+
+    save_token(user_id, access_token, refresh_token, expires_in)
+
+    bot_headers = {
+        "Authorization": f"Bot {BOT_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    # Remove cargo não-verificado
+    if unverified_role_id:
+        requests.delete(
+            f"{DISCORD_API}/guilds/{GUILD_ID}/members/{user_id}/roles/{unverified_role_id}",
+            headers=bot_headers,
+        )
+    # Adiciona cargo verificado
+    if verified_role_id:
+        requests.put(
+            f"{DISCORD_API}/guilds/{GUILD_ID}/members/{user_id}/roles/{verified_role_id}",
+            headers=bot_headers,
+        )
+
+    # Dados do servidor
+    guild_resp = requests.get(f"{DISCORD_API}/guilds/{GUILD_ID}", headers=bot_headers)
+    guild_name = "Servidor"
+    guild_icon = None
+    if guild_resp.status_code == 200:
+        g = guild_resp.json()
+        guild_name = g.get("name", "Servidor")
+        if g.get("icon"):
+            guild_icon = f"https://cdn.discordapp.com/icons/{GUILD_ID}/{g['icon']}.png?size=256"
+
+    avatar_url = (
+        f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png?size=256"
+        if avatar_hash else
+        f"https://cdn.discordapp.com/embed/avatars/{int(user_id) % 5}.png"
+    )
+
+    # Gera link convite
+    guild_url = f"https://discord.com/channels/{GUILD_ID}"
+    try:
+        ch_resp = requests.get(f"{DISCORD_API}/guilds/{GUILD_ID}/channels", headers=bot_headers, timeout=10)
+        invite_ch_id = None
+        if ch_resp.status_code == 200:
+            for ch in ch_resp.json():
+                if ch["type"] == 0:
+                    invite_ch_id = ch["id"]
+                    break
+        if invite_ch_id:
+            inv = requests.post(
+                f"{DISCORD_API}/channels/{invite_ch_id}/invites",
+                headers=bot_headers,
+                json={"max_age": 3600, "max_uses": 1, "unique": True},
+                timeout=10,
+            )
+            if inv.status_code in (200, 201):
+                guild_url = f"https://discord.gg/{inv.json()['code']}"
+    except Exception as e:
+        print("⚠️ convite:", e)
+
+    # Log no canal
+    if log_channel_id:
+        try:
+            requests.post(
+                f"{DISCORD_API}/channels/{log_channel_id}/messages",
+                headers=bot_headers,
+                json={
+                    "embeds": [{
+                        "description": f"✅ **{username}** (`{user_id}`) se verificou!",
+                        "color": 0x23a55a,
+                        "thumbnail": {"url": avatar_url},
+                    }]
+                },
+                timeout=10,
+            )
+        except Exception:
+            pass
+
+    timestamp = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
+
+    return render_template(
+        "sucesso.html",
+        username=username,
+        avatar=avatar_url,
+        guild_name=guild_name,
+        guild_icon=guild_icon,
+        guild_banner=embed_cfg.get("image_url"),
+        guild_url=guild_url,
+        guild_id=GUILD_ID,
+        timestamp=timestamp,
+        app_name=APP_NAME,
+    )
+
+
+@app.route("/health")
+def health():
+    return {"status": "ok"}, 200
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template("erro.html", motivo="Página não encontrada.", app_name=APP_NAME), 404
+
+
+# ============================================================
+# AUTO-PORT: procura uma porta livre automaticamente
+# ============================================================
+import socket
+
+PORT_FILE = "port.txt"
+
+
+def is_port_free(port: int) -> bool:
+    """Testa se a porta está livre."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(("0.0.0.0", port))
+            return True
+        except OSError:
+            return False
+
+
+def find_free_port(start: int, max_tries: int = 50) -> int:
+    """Procura a próxima porta livre a partir de `start`."""
+    for port in range(start, start + max_tries):
+        if is_port_free(port):
+            return port
+    raise RuntimeError(f"❌ Nenhuma porta livre entre {start} e {start + max_tries}")
+
+
+def save_port(port: int):
+    with open(PORT_FILE, "w", encoding="utf-8") as f:
+        f.write(str(port))
+
+
+def load_port() -> int | None:
+    if not os.path.exists(PORT_FILE):
+        return None
+    try:
+        with open(PORT_FILE, "r", encoding="utf-8") as f:
+            return int(f.read().strip())
+    except Exception:
+        return None
+
+
+if __name__ == "__main__":
+    # Porta inicial definida no .env
+    start_port = int(os.getenv("FLASK_PORT", 8001))
+
+    # Se a porta inicial está livre, usa ela. Senão, procura a próxima.
+    if is_port_free(start_port):
+        chosen = start_port
+    else:
+        print(f"⚠️ Porta {start_port} ocupada, procurando próxima livre...")
+        chosen = find_free_port(start_port + 1)
+
+    # Salva a porta escolhida pra o bot ler
+    save_port(chosen)
+
+    # Atualiza o REDIRECT_URI dinamicamente (se a porta mudou)
+    REDIRECT_URI = f"http://localhost:{chosen}/callback"
+
+    print("=" * 55)
+    print(f"🌐 Flask rodando em http://localhost:{chosen}")
+    print(f"🔗 REDIRECT_URI: {REDIRECT_URI}")
+    print(f"💾 Porta salva em: {PORT_FILE}")
+    print("=" * 55)
+    print()
+    print("⚠️  IMPORTANTE: Atualize no Developer Portal → OAuth2 → Redirects:")
+    print(f"    {REDIRECT_URI}")
+    print()
+
+    app.run(host="0.0.0.0", port=chosen, debug=False)
